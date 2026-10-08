@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>薬の前に、整えられることがある</title>
+<style>
+/* 白×ロイヤルブルーの動画ステージ（1920×1080固定）。プレビュー時は縮小表示、書き出し時は等倍 */
+@font-face{font-family:"ZKGN";font-weight:500;src:url(assets/fonts/ZenKakuGothicNew-500.ttf)}
+@font-face{font-family:"ZKGN";font-weight:700;src:url(assets/fonts/ZenKakuGothicNew-700.ttf)}
+@font-face{font-family:"ZKGN";font-weight:900;src:url(assets/fonts/ZenKakuGothicNew-900.ttf)}
+:root{
+  --bg:#ffffff;--ink:#16213e;--sub:#4a5878;--blue:#2449c9;--blue-soft:#e8eefc;--line:#c9d4ef;
+  --warn:#c23b3b;--warn-soft:#fbeaea;--ok:#1f8a5b;--ok-soft:#e5f4ec;--page:#f3f5fb;
+  --font:"ZKGN","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font)}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px;display:flex;flex-direction:column;gap:12px}
+.frame{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--line);background:var(--bg)}
+.stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;background:var(--bg);overflow:hidden;container-type:inline-size}
+body.render{background:var(--bg)}
+body.render .wrap{max-width:none;padding:0;margin:0}
+body.render .frame{border:0;width:1920px;height:1080px;aspect-ratio:auto}
+body.render .ctrl,body.render .note{display:none}
+
+.scene{position:absolute;inset:0;visibility:hidden}
+.pg{position:absolute;inset:3.6cqw 5.5cqw 9.6cqw;display:flex;flex-direction:column;gap:1.4cqw}
+.tag{display:inline-flex;align-self:flex-start;background:var(--blue);color:#fff;font-weight:700;font-size:1.9cqw;padding:.45cqw 1.5cqw;letter-spacing:.08em}
+h2{margin:0;font-size:3.5cqw;font-weight:900;line-height:1.3}
+h2 em,.em{font-style:normal;color:var(--blue)}
+.red{color:var(--warn)}
+.sub{font-size:1.75cqw;color:var(--sub);font-weight:500;margin:-.5cqw 0 0}
+.body{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:safe center;gap:1.6cqw}
+.cap{position:absolute;left:0;right:0;bottom:0;background:var(--blue-soft);border-top:1px solid var(--line);padding:1cqw 5.5cqw;font-size:2cqw;font-weight:500;line-height:1.45;height:7.6cqw;display:flex;align-items:center}
+.bar{position:absolute;left:0;top:0;height:.5cqw;background:var(--blue);width:0}
+.foot{position:absolute;right:5.5cqw;top:3.9cqw;font-size:1.3cqw;color:var(--sub);font-weight:500;letter-spacing:.05em}
+.band{background:var(--blue-soft);border-left:.8cqw solid var(--blue);padding:.9cqw 1.8cqw;font-size:2.1cqw;font-weight:700;line-height:1.4}
+.band.warn{background:var(--warn-soft);border-color:var(--warn)}
+.band.ink{background:var(--ink);color:#fff;border-color:var(--blue)}
+.arrow{font-size:4.6cqw;color:var(--blue);font-weight:900;line-height:1}
+svg *{transform-box:fill-box;transform-origin:center}
+/* 強調（--lit はJSが0〜1で動かす） */
+.hl{--lit:0;box-shadow:0 0 0 calc(var(--lit)*.45cqw) var(--blue),0 calc(var(--lit)*1.2cqw) calc(var(--lit)*2.4cqw) rgba(36,73,201,calc(var(--lit)*.25))}
+
+/* タイトル */
+.title{justify-content:center;padding-left:3cqw}
+.kicker{font-size:2.2cqw;font-weight:700;color:var(--blue);letter-spacing:.12em}
+.title h1{margin:0;font-size:6.6cqw;font-weight:900;line-height:1.25}
+.title h1 span{color:var(--blue)}
+.uline{height:.8cqw;background:var(--blue);width:36cqw}
+.lead{font-size:2.6cqw;color:var(--sub);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:.8cqw;max-width:80cqw}
+.chips span{border:.2cqw solid var(--line);padding:.35cqw 1.1cqw;font-size:1.6cqw;font-weight:700;color:var(--sub);background:#fff}
+.target{display:flex;align-items:center;gap:1.4cqw;font-size:2cqw;font-weight:700}
+.target b{background:var(--ink);color:#fff;padding:.3cqw 1.2cqw}
+
+/* 見方の転換 */
+.swap{display:grid;grid-template-columns:1fr auto 1fr;gap:3cqw;align-items:center}
+.swap>div{padding:2.4cqw 2cqw;text-align:center;min-width:0}
+.swap .old{border:.3cqw dashed var(--line);color:var(--sub)}
+.swap .new{border:.4cqw solid var(--blue);background:var(--blue-soft)}
+.swap small{display:block;font-size:1.8cqw;font-weight:700;margin-bottom:.8cqw}
+.swap b{display:inline-block;position:relative;font-size:3.8cqw;font-weight:900}
+.swap .new b{color:var(--blue)}
+.swap span{display:block;font-size:2cqw;margin-top:.8cqw;font-weight:500}
+.strike{position:absolute;left:-4%;right:-4%;top:52%;height:.4cqw;background:var(--warn)}
+
+/* BPSDの定義 */
+.defgrid{display:grid;grid-template-columns:1fr 1fr 22cqw;gap:2cqw;align-items:stretch}
+.defcol{border:.3cqw solid var(--blue);min-width:0}
+.defcol h3{margin:0;background:var(--blue);color:#fff;font-size:2.1cqw;padding:.45cqw 1.4cqw}
+.defcol.psy{border-color:var(--ink)}
+.defcol.psy h3{background:var(--ink)}
+.defcol ul{list-style:none;margin:0;padding:.8cqw 1.4cqw;display:flex;flex-direction:column;gap:.3cqw}
+.defcol li{font-size:1.8cqw;font-weight:700;padding-left:1.6cqw;position:relative}
+.defcol li::before{content:"";position:absolute;left:0;top:.65em;width:.7cqw;height:.7cqw;background:var(--blue)}
+.defcol.psy li::before{background:var(--ink)}
+.stat{background:var(--blue-soft);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:1.5cqw;gap:.4cqw}
+.stat small{font-size:1.6cqw;font-weight:700;color:var(--sub)}
+.stat b{font-size:4.6cqw;font-weight:900;color:var(--blue);line-height:1.1}
+.stat span{font-size:1.6cqw;font-weight:700}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:2cqw}
+.vs div{padding:.8cqw 1.6cqw;font-size:1.9cqw;font-weight:700;border:.3cqw solid var(--line);display:flex;align-items:center;gap:1.4cqw}
+.vs div i{font-style:normal;font-size:1.6cqw;color:#fff;background:var(--sub);padding:.2cqw .9cqw;white-space:nowrap}
+.vs .chg{border-color:var(--blue);background:var(--blue-soft)}
+.vs .chg i{background:var(--blue)}
+
+/* 引き金の積み上げ */
+.stack{display:grid;grid-template-columns:1.25fr auto .8fr;gap:3cqw;align-items:center}
+.stack>*{min-width:0}
+.blocks{display:flex;flex-direction:column;gap:1cqw}
+.f4{display:grid;grid-template-columns:1fr 1fr;gap:1cqw}
+.f4 div{border:.3cqw solid var(--blue);padding:1cqw;text-align:center;font-size:2.4cqw;font-weight:900;color:var(--blue);background:#fff}
+.f4 div small{display:block;font-size:1.5cqw;color:var(--sub);font-weight:500;margin-top:.2cqw}
+.base{background:var(--ink);color:#fff;text-align:center;padding:1.3cqw;font-size:2.4cqw;font-weight:700}
+.result{background:var(--blue);color:#fff;text-align:center;padding:2.6cqw 2cqw;font-size:4.2cqw;font-weight:900;line-height:1.3}
+.result small{display:block;font-size:1.8cqw;font-weight:500}
+
+/* パニック */
+.panic{display:grid;grid-template-columns:auto 1fr;gap:4cqw;align-items:center}
+.panic>*{min-width:0}
+.big{font-size:5cqw;font-weight:900;line-height:1.35}
+.big em{font-style:normal;color:var(--warn)}
+.voices{display:flex;flex-direction:column;gap:1cqw}
+.voices span{align-self:flex-start;font-size:2.4cqw;font-weight:900;color:var(--blue);background:var(--blue-soft);padding:.5cqw 1.6cqw;border-radius:2cqw}
+.message{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2.4cqw;padding-left:3cqw}
+.message p{margin:0;font-size:5cqw;font-weight:900;line-height:1.35}
+.message p em{font-style:normal;color:var(--blue)}
+
+/* 順番 */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2.2cqw;align-items:stretch}
+.steps>div{border-top:.8cqw solid var(--blue);background:var(--blue-soft);padding:1.3cqw 1.6cqw;min-width:0}
+.steps i{font-style:normal;display:block;font-size:3.6cqw;font-weight:900;color:var(--blue);line-height:1}
+.steps b{display:block;font-size:2.7cqw;font-weight:900;margin:.4cqw 0 .1cqw}
+.steps em{display:block;font-style:normal;font-size:1.6cqw;font-weight:700;color:var(--blue);margin-bottom:.6cqw}
+.steps span{font-size:1.65cqw;color:var(--sub);font-weight:500;line-height:1.5}
+.medq{display:flex;align-items:center;gap:2cqw}
+.medq .q{font-size:2.5cqw;font-weight:900}
+.no-med{font-size:2cqw;font-weight:700;color:var(--warn);border:.3cqw solid var(--warn);padding:.5cqw 1.8cqw;background:#fff}
+
+/* 身体チェック */
+.body5{display:grid;grid-template-columns:1fr 27cqw;gap:2.4cqw;align-items:stretch}
+.body5>*{min-width:0}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:1cqw}
+.checks div{display:grid;grid-template-columns:3cqw 1fr;align-items:center;gap:1.1cqw;border:.25cqw solid var(--line);padding:.7cqw 1.1cqw;background:#fff}
+.checks svg{width:3cqw;height:3cqw}
+.checks b{display:block;font-size:2.1cqw;font-weight:900}
+.checks small{display:block;font-size:1.5cqw;color:var(--sub);font-weight:500}
+.delir{border:.4cqw solid var(--warn);background:var(--warn-soft);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2cqw;gap:.8cqw}
+.delir small{font-size:1.8cqw;font-weight:700;color:var(--warn)}
+.delir b{font-size:3.6cqw;font-weight:900;color:var(--warn);line-height:1.2}
+.delir span{font-size:1.7cqw;font-weight:500;line-height:1.5}
+
+/* 環境3方向 */
+.env3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.8cqw}
+.env3>div{border:.3cqw solid var(--blue);background:#fff;min-width:0;display:flex;flex-direction:column}
+.env3 h3{margin:0;background:var(--blue);color:#fff;font-size:2.3cqw;font-weight:900;padding:.5cqw 1.3cqw;display:flex;justify-content:space-between;align-items:baseline}
+.env3 h3 small{font-size:1.6cqw;font-weight:700;opacity:.9}
+.env3 p{margin:0;padding:.8cqw 1.3cqw 0;font-size:1.65cqw;font-weight:700;color:var(--blue)}
+.env3 ul{margin:0;padding:.4cqw 1cqw .9cqw 2.6cqw;font-size:1.5cqw;font-weight:500;line-height:1.5}
+
+/* 関わり */
+.rel{display:grid;grid-template-columns:1fr 28cqw;gap:2.4cqw;align-items:stretch}
+.rel>*{min-width:0}
+.rows{display:flex;flex-direction:column;gap:.5cqw}
+.rows div{display:grid;grid-template-columns:17cqw 1fr;align-items:center;border:.25cqw solid var(--line);background:#fff}
+.rows b{background:var(--ink);color:#fff;font-size:1.85cqw;font-weight:900;padding:.5cqw 1.2cqw;height:100%;display:flex;align-items:center}
+.rows span{font-size:1.75cqw;font-weight:700;padding:.5cqw 1.4cqw}
+.fire{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1cqw;text-align:center;background:var(--warn-soft);padding:1.6cqw}
+.fire svg{width:10cqw;height:10cqw}
+.fire b{font-size:2.1cqw;font-weight:900;line-height:1.4;color:var(--warn)}
+.leave{background:var(--ok-soft);border:.35cqw solid var(--ok);padding:.7cqw 1.8cqw;display:flex;align-items:center;gap:2cqw}
+.leave b{font-size:2.6cqw;font-weight:900;color:var(--ok);white-space:nowrap}
+.leave span{font-size:1.75cqw;font-weight:700}
+
+/* 実例 */
+.case-no{font-size:2cqw;font-weight:900;color:var(--blue);margin-left:.6cqw}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:2.4cqw}
+.flow>div{border:.35cqw solid var(--line);padding:1.2cqw 1.2cqw 1.4cqw;min-width:0;position:relative;background:var(--bg)}
+.flow>div:not(:last-child)::after{content:"▶";position:absolute;right:-2.15cqw;top:50%;transform:translateY(-50%);color:var(--blue);font-size:1.9cqw}
+.flow small{display:block;font-size:1.6cqw;font-weight:900;color:var(--sub);letter-spacing:.06em;margin-bottom:.8cqw}
+.flow ul{margin:0;padding:0 0 0 1.8cqw;font-size:1.75cqw;font-weight:700;line-height:1.5;display:flex;flex-direction:column;gap:.5cqw}
+.flow .hit{border-color:var(--blue);background:var(--blue-soft)}
+.flow .hit small{color:var(--blue)}
+.flow .out{border-color:var(--ok);background:var(--ok-soft)}
+.flow .out small{color:var(--ok)}
+.flow .out ul{color:var(--ok);font-weight:900}
+.who{font-size:1.8cqw;color:var(--sub);font-weight:700}
+.who b{color:var(--ink);background:var(--blue-soft);padding:.2cqw 1cqw;margin-left:.6cqw}
+
+/* 薬 */
+.ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:1.8cqw;align-items:end;margin-top:3cqw}
+.ladder>div{background:var(--blue-soft);border:.3cqw solid var(--blue);padding:1.4cqw 1.6cqw;min-width:0;transform-origin:bottom}
+.ladder>div:nth-child(1){height:15cqw}.ladder>div:nth-child(2){height:19cqw}
+.ladder>div:nth-child(3){height:23cqw;background:var(--bg);border-style:dashed;position:relative}
+.ladder small{display:block;font-size:1.6cqw;font-weight:900;color:var(--blue)}
+.ladder b{display:block;font-size:2.6cqw;font-weight:900;line-height:1.35;margin-top:.3cqw}
+.ladder span{display:block;font-size:1.6cqw;font-weight:500;color:var(--sub);margin-top:.6cqw;line-height:1.5}
+.here{position:absolute;top:-5cqw;left:0;right:0;text-align:center;font-size:2.1cqw;font-weight:900;color:var(--warn)}
+.stopq{display:grid;grid-template-columns:auto 1fr;gap:4cqw;align-items:center;flex:1}
+.stopq svg{width:22cqw;height:22cqw}
+.stopq p{margin:0;font-size:4.6cqw;font-weight:900;line-height:1.4}
+.stopq p em{font-style:normal;color:var(--warn)}
+.stopq span{display:block;font-size:2.2cqw;font-weight:500;color:var(--sub);margin-top:1.4cqw;line-height:1.6}
+
+/* やめどき */
+.taper{display:grid;grid-template-columns:1fr;gap:2cqw}
+.fact{font-size:2.8cqw;font-weight:700;line-height:1.5}
+.fact em{font-style:normal;color:#fff;background:var(--blue);padding:0 .6cqw}
+.tl{position:relative;height:8cqw;margin:0 2cqw}
+.tl .track{position:absolute;left:0;right:0;top:3.4cqw;height:1.2cqw;background:var(--line)}
+.tl .fill{position:absolute;left:0;width:62%;top:3.4cqw;height:1.2cqw;background:var(--blue);transform-origin:left}
+.tl .mk{position:absolute;top:0;font-size:1.7cqw;font-weight:900;translate:-50% 0;white-space:nowrap}
+.tl .mk.end{left:62%;color:var(--warn);top:5.4cqw;font-size:2.2cqw}
+.tl .pin{position:absolute;left:62%;top:2.4cqw;width:.5cqw;height:3.2cqw;background:var(--warn);translate:-50% 0}
+.also{font-size:2.1cqw;font-weight:700;color:var(--sub)}
+.p3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.8cqw}
+.p3>div{border:.3cqw solid var(--blue);padding:1.4cqw 1.8cqw;background:#fff;min-width:0}
+.p3 i{font-style:normal;display:inline-grid;place-items:center;width:3.6cqw;height:3.6cqw;background:var(--blue);color:#fff;font-weight:900;font-size:2.2cqw;margin-right:1cqw}
+.p3 b{font-size:3cqw;font-weight:900;vertical-align:middle}
+.p3 span{display:block;font-size:1.8cqw;font-weight:500;color:var(--sub);margin-top:.8cqw;line-height:1.5}
+.quote{text-align:center;font-size:3.4cqw;font-weight:900}
+.quote small{display:block;font-size:2cqw;font-weight:700;color:var(--sub);text-decoration:line-through;text-decoration-color:var(--warn);text-decoration-thickness:.25cqw;margin-bottom:.6cqw}
+.quote em{font-style:normal;color:var(--blue)}
+
+/* 全職種 */
+.roles{display:grid;grid-template-columns:repeat(5,1fr);gap:1cqw}
+.roles div{border:.25cqw solid var(--line);background:#fff;padding:.8cqw 1cqw;min-width:0;--lit:0;border-color:color-mix(in srgb,var(--blue) calc(var(--lit)*100%),var(--line));background:color-mix(in srgb,var(--blue-soft) calc(var(--lit)*100%),#fff)}
+.roles b{display:block;font-size:1.85cqw;font-weight:900;line-height:1.3;min-height:4.8cqw;display:flex;align-items:flex-end}
+.roles span{display:block;font-size:1.4cqw;font-weight:500;color:var(--sub);line-height:1.45;margin-top:.4cqw}
+
+/* まとめ */
+.sum3{display:grid;grid-template-columns:repeat(3,1fr);gap:2cqw}
+.sum3>div{border-top:.8cqw solid var(--blue);background:var(--blue-soft);padding:1.4cqw 1.6cqw;min-width:0}
+.sum3 small{display:flex;align-items:center;gap:1cqw;font-size:2cqw;font-weight:900;color:var(--blue)}
+.sum3 small i{font-style:normal;display:inline-grid;place-items:center;width:3.4cqw;height:3.4cqw;background:var(--blue);color:#fff}
+.sum3 b{display:block;font-size:2.6cqw;font-weight:900;line-height:1.35;margin:.8cqw 0}
+.sum3 span{font-size:1.6cqw;color:var(--sub);font-weight:500;line-height:1.55}
+
+/* 明日から */
+.try{display:flex;flex-direction:column;gap:1.1cqw;margin:0;padding:0;list-style:none}
+.try li{display:grid;grid-template-columns:5.4cqw 1fr;gap:2cqw;align-items:center;padding:.6cqw 1cqw}
+.try i{font-style:normal;width:5.4cqw;height:5.4cqw;display:grid;place-items:center;background:var(--blue);color:#fff;font-weight:900;font-size:3cqw}
+.try b{font-size:2.7cqw;font-weight:900;line-height:1.3;min-width:0}
+.try b small{display:block;font-size:1.9cqw;color:var(--sub);font-weight:500;margin-top:.3cqw}
+.kinds{display:flex;gap:1.2cqw}
+.kinds span{font-size:2cqw;font-weight:900;color:var(--blue);border:.25cqw solid var(--blue);padding:.3cqw 1.4cqw}
+
+/* おわり */
+.thanks{display:grid;grid-template-columns:1fr auto;gap:4cqw;align-items:center;flex:1}
+.thanks h1{margin:0;font-size:4.6cqw;font-weight:900;line-height:1.3}
+.qr{display:flex;flex-direction:column;align-items:center;gap:1cqw;border:.3cqw solid var(--blue);padding:1.6cqw;background:#fff}
+.qr img{width:17cqw;height:auto;display:block}
+.qr b{font-size:2cqw;font-weight:900;color:var(--blue)}
+.qr span{font-size:1.6cqw;font-weight:700;color:var(--sub)}
+
+/* 操作バー（プレビュー用） */
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.ctrl button{font-family:var(--font);font-size:15px;font-weight:700;background:var(--blue);color:#fff;border:0;padding:9px 18px;cursor:pointer}
+.ctrl button.ghost{background:var(--bg);color:var(--blue);border:1px solid var(--blue)}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dots button{width:30px;height:30px;padding:0;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.dots button.cur{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ctrl input[type=range]{flex:1;min-width:160px}
+.time{font-size:14px;color:var(--sub);font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--sub);margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="frame" id="frame"><div class="stage" id="stage">
+
+<!-- 01 はじめに -->
+<section class="scene">
+  <div class="pg title" data-out="私たちが困った行動と">
+    <div class="kicker" data-in="0.2">掛川東病院　認知症ケア研修</div>
+    <h1 data-in="0.5">薬の前に、<br><span>整えられること</span>がある</h1>
+    <div class="uline" data-in="1.1" data-fx="grow"></div>
+    <div class="lead" data-in="1.8">ご本人に見えている世界を知り、周りの環境を整える</div>
+    <div class="target" data-in="病院で働くすべての職員"><b>対象</b>病院で働く、すべての職員</div>
+    <div class="chips">
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="0.3">医療職</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="0.45">リハビリ職</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="0.6">薬剤師</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="0.75">検査技師</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="0.9">放射線技師</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="1.05">栄養科</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="1.2">事務</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="1.35">環境整備</span>
+      <span data-in="すべての職員が対象" data-fx="pop" data-off="1.5">送迎 ほか</span>
+    </div>
+  </div>
+  <div class="pg" data-in="私たちが困った行動と" data-out="ご本人に見えている世界を知り">
+    <span class="tag" data-in="私たちが困った行動と">見方を変える</span>
+    <h2 data-in="私たちが困った行動と" data-off="0.15">「困った行動」は、<em>ご本人の困りごと</em>のサイン</h2>
+    <div class="body">
+      <div class="swap">
+        <div class="old" data-in="私たちが困った行動と" data-off="0.5"><small>これまでの見方</small><b>困った行動<i class="strike" data-in="実は、ご本人が" data-fx="grow"></i></b><span>どうしてそんなことを…</span></div>
+        <div class="arrow" data-in="ご本人が困っているというサイン" data-fx="pop">→</div>
+        <div class="new" data-in="ご本人が困っているというサイン" data-fx="pop" data-off="0.4"><small>ご本人の側から見ると</small><b>ご本人の困りごと</b><span data-in="切実で合理的な理由" data-fx="rise">必ず、切実で合理的な理由がある</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" data-in="ご本人に見えている世界を知り">
+    <div class="message">
+      <div class="kicker" data-in="ご本人に見えている世界を知り">今日の研修で確認すること</div>
+      <p data-in="ご本人に見えている世界を知り" data-off="0.2"><em>ご本人に見えている世界</em>を知り、</p>
+      <p data-in="周りの環境を整える"><em>周りの環境</em>を整える。</p>
+      <div class="uline" data-in="周りの環境を整える" data-off="0.6" data-fx="grow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 BPSDとは -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">BPSDを知る</span>
+    <h2 data-in="ビーピーエスディーとは">BPSDは、認知症の<em>「行動・心理症状」</em></h2>
+    <p class="sub" data-in="ビーピーエスディーとは" data-off="0.4">読み方：ビーピーエスディー　／　認知症そのものの症状（中核症状）とは分けて考えます</p>
+    <div class="body">
+      <div class="defgrid">
+        <div class="defcol" data-in="行動症状と心理症状に" data-fx="pop"><h3>行動症状</h3><ul>
+          <li data-in="それぞれの例は画面" data-off="0.0">焦燥・興奮</li>
+          <li data-in="それぞれの例は画面" data-off="0.2">攻撃性・介護への抵抗</li>
+          <li data-in="それぞれの例は画面" data-off="0.4">徘徊・落ち着きのなさ</li>
+          <li data-in="それぞれの例は画面" data-off="0.6">大声・叫声</li>
+          <li data-in="それぞれの例は画面" data-off="0.8">拒絶・拒食</li></ul></div>
+        <div class="defcol psy" data-in="心理症状に分かれ" data-fx="pop"><h3>心理症状</h3><ul>
+          <li data-in="それぞれの例は画面" data-off="1.0">不安・焦り</li>
+          <li data-in="それぞれの例は画面" data-off="1.2">抑うつ・意欲の低下</li>
+          <li data-in="それぞれの例は画面" data-off="1.4">幻覚・妄想（もの盗られなど）</li>
+          <li data-in="それぞれの例は画面" data-off="1.6">易怒性・情緒の不安定</li>
+          <li data-in="それぞれの例は画面" data-off="1.8">睡眠の乱れ・昼夜逆転</li></ul></div>
+        <div class="stat" data-in="およそ六割から九割" data-fx="pop"><small>認知症の経過のなかで</small><b>6〜9割</b><span>の人が何らかの<br>BPSDを経験</span></div>
+      </div>
+      <div class="vs">
+        <div class="hl" data-in="中核症状とは分けて考える" data-hl="中核症状は必ず現れますが" data-hl-end="ビーピーエスディーは人によって"><i>中核症状</i>記憶・見当識の障害 → 必ず現れる</div>
+        <div class="chg hl" data-in="中核症状とは分けて考える" data-off="0.4" data-hl="ビーピーエスディーは人によって"><i>BPSD</i>人それぞれ → <span class="em">関わりで変えられる</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 引き金 -->
+<section class="scene">
+  <div class="pg" data-out="なかでも入院は">
+    <span class="tag" data-in="0.1">BPSDを知る</span>
+    <h2 data-in="0.3">BPSDには、<em>必ず引き金</em>がある</h2>
+    <p class="sub" data-in="認知症だから起きる">「認知症だから起きる」のではありません</p>
+    <div class="body">
+      <div class="stack">
+        <div class="blocks">
+          <div class="f4">
+            <div class="hl" data-in="体の状態" data-fx="pop" data-hl="体の状態" data-hl-end="環境、心理">身体<small>感染症・脱水・便秘・痛み・薬剤</small></div>
+            <div class="hl" data-in="環境、心理" data-fx="pop" data-hl="環境、心理" data-hl-end="心理、そして">環境<small>入院・騒音・照明・慣れない場所</small></div>
+            <div class="hl" data-in="心理、そして" data-fx="pop" data-hl="心理、そして" data-hl-end="そして私たちのケア">心理<small>不安・孤独・役割の喪失</small></div>
+            <div class="hl" data-in="そして私たちのケア" data-fx="pop" data-hl="そして私たちのケア" data-hl-end="具体例は画面">ケア・関わり方<small>説得・否定・急な接触</small></div>
+          </div>
+          <div class="base" data-in="中核症状という土台" data-fx="growy">中核症状（土台）</div>
+        </div>
+        <div class="arrow" data-in="重なったときに表に" data-fx="pop">→</div>
+        <div class="result" data-in="表に出てきます" data-fx="pop"><small>表に出たもの</small>BPSD</div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" data-in="なかでも入院は" data-out="引き金は必ずあります">
+    <span class="tag" data-in="なかでも入院は">ご本人の側に立つ</span>
+    <div class="body">
+      <div class="panic">
+        <svg viewBox="0 0 200 200" style="width:26cqw;height:26cqw" aria-hidden="true" data-in="なかでも入院は" data-fx="pop">
+          <circle cx="100" cy="80" r="34" fill="#fff" stroke="#16213e" stroke-width="5"/>
+          <path d="M40 195 Q100 105 160 195" fill="#e8eefc" stroke="#16213e" stroke-width="5"/>
+          <path d="M86 96 Q100 86 114 96" fill="none" stroke="#16213e" stroke-width="4"/>
+          <circle cx="88" cy="74" r="4" fill="#16213e"/><circle cx="112" cy="74" r="4" fill="#16213e"/>
+          <path d="M132 58 q6 8 0 14" fill="none" stroke="#2449c9" stroke-width="3" data-in="体調が悪くて苦しい" data-loop="blink"/>
+          <text x="14" y="50" font-size="38" font-weight="900" fill="#c23b3b" data-in="見たこともない場所" data-fx="pop" data-loop="blink">？</text>
+          <text x="152" y="40" font-size="30" font-weight="900" fill="#c23b3b" data-in="見たこともない場所" data-off="0.4" data-fx="pop" data-loop="blink">？</text>
+          <text x="162" y="100" font-size="24" font-weight="900" fill="#c23b3b" data-in="知らない白い服" data-fx="pop" data-loop="blink">？</text>
+        </svg>
+        <div style="display:flex;flex-direction:column;gap:2.4cqw;min-width:0">
+          <div class="voices">
+            <span data-in="体調が悪くて苦しい">体調が悪くて、苦しい</span>
+            <span data-in="見たこともない場所">見たこともない場所</span>
+            <span data-in="知らない白い服">知らない白い服の人ばかり</span>
+          </div>
+          <div class="big" data-in="人生最大のパニック" data-loop="shake" data-loop-at="人生最大のパニック" data-loop-off="0.8">入院は、ご本人にとって<br><em>「人生最大のパニック」</em></div>
+          <div class="sub" style="margin:0" data-in="私たちのケアは、その過酷">私たちのケアは、その過酷な状況から始まります</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" data-in="引き金は必ずあります">
+    <div class="message">
+      <p data-in="引き金は必ずあります"><em>引き金</em>は、必ずあります。</p>
+      <p data-in="それを探すことが" style="font-size:3.6cqw">それを探すことが、<br>私たちの<em>最初の仕事</em>です。</p>
+      <div class="uline" data-in="最初の仕事" data-fx="grow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 最初の選択肢 -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">私たちにできること</span>
+    <h2 data-in="最初に何をすれば">最初の選択肢は、<em>薬ではありません</em></h2>
+    <div class="medq">
+      <svg viewBox="0 0 120 60" style="width:9cqw;height:4.5cqw" aria-hidden="true" data-in="薬でしょうか" data-fx="pop">
+        <rect x="6" y="10" width="108" height="40" rx="20" fill="#fff" stroke="#16213e" stroke-width="5"/>
+        <path d="M60 10 v40" stroke="#16213e" stroke-width="5"/><rect x="8" y="12" width="52" height="36" rx="18" fill="#e8eefc"/>
+        <path d="M20 4 L100 56 M100 4 L20 56" stroke="#c23b3b" stroke-width="7" stroke-linecap="round" data-in="違います" data-fx="fade"/>
+      </svg>
+      <span class="q" data-in="薬でしょうか">薬でしょうか？ → <span class="red" data-in="違います" data-fx="pop">違います</span></span>
+      <span class="no-med" data-in="非薬物的介入を最優先" data-fx="pop">BPSDガイドライン：非薬物的介入を最優先</span>
+    </div>
+    <div class="body">
+      <div class="steps">
+        <div class="hl" data-in="まず体を疑う" data-hl="まず体を疑う" data-hl-end="次に環境を"><i>1</i><b>身体を疑う</b><em>フィジカルアセスメント</em><span>感染症・脱水・便秘・痛み・視覚聴覚障害・薬剤の影響</span></div>
+        <div class="hl" data-in="次に環境を整える" data-hl="次に環境を整える" data-hl-end="そして自分の関わり"><i>2</i><b>環境を整える</b><em>物理的・社会的・心理的に</em><span>見る・聞く環境、人とのつながり、安心できる関わり</span></div>
+        <div class="hl" data-in="そして自分の関わり" data-hl="そして自分の関わり" data-hl-end="誘因や環境要因"><i>3</i><b>関わりを見直す</b><em>自分自身が促進因子かも</em><span>声かけ・対応そのものが刺激になっていないか</span></div>
+      </div>
+      <div class="band" data-in="誘因や環境要因を探り">誘因や環境要因を探り、<span class="em">ご家族や医療・介護スタッフと一緒に</span>改善を図る</div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 身体 -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">私たちにできること　1｜身体</span>
+    <h2 data-in="急に落ち着かなく">落ち着かないとき、<em>まず身体を疑う</em></h2>
+    <p class="sub" data-in="認知症の悪化だと決めつける">急な変化を「認知症の悪化」と決めつけず、身体的な原因がないかをまず否定する</p>
+    <div class="body">
+      <div class="body5">
+        <div class="checks">
+          <div data-in="見るところは画面の六項目" data-off="0.0"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="0.3" data-fx="fade"/></svg><span><b>感染症</b><small>発熱・尿路・肺炎など</small></span></div>
+          <div data-in="見るところは画面の六項目" data-off="0.3"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="0.6" data-fx="fade"/></svg><span><b>脱水</b><small>水分摂取量の低下</small></span></div>
+          <div data-in="見るところは画面の六項目" data-off="0.6"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="0.9" data-fx="fade"/></svg><span><b>便秘</b><small>数日間の排便状況</small></span></div>
+          <div data-in="見るところは画面の六項目" data-off="0.9"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="1.2" data-fx="fade"/></svg><span><b>痛み</b><small>表情・動作から推察</small></span></div>
+          <div data-in="見るところは画面の六項目" data-off="1.2"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="1.5" data-fx="fade"/></svg><span><b>視覚・聴覚障害</b><small>眼鏡・補聴器を確認</small></span></div>
+          <div data-in="見るところは画面の六項目" data-off="1.5"><svg viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" fill="#e8eefc" stroke="#2449c9" stroke-width="3"/><path d="M10 21 l7 7 l13 -16" fill="none" stroke="#2449c9" stroke-width="5" data-in="見るところは画面の六項目" data-off="1.8" data-fx="fade"/></svg><span><b>新規薬剤</b><small>最近始めた薬の影響</small></span></div>
+        </div>
+        <div class="delir" data-in="特に見落としてはいけない" data-fx="pop" data-loop="pulse" data-loop-at="せん妄の可能性"><small>見落としてはいけない</small><b>せん妄の<br>可能性</b><span>ご本人は言葉で<br>訴えにくいことばかり</span></div>
+      </div>
+      <div class="band" data-in="アセスメントの中心は医療職">中心は医療職。でも<span class="em" data-in="いつもと違うと気づける" data-fx="fade">「いつもと違う」と気づけるのは、近くにいる全員</span>です。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 環境 -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">私たちにできること　2｜環境</span>
+    <h2 data-in="0.3">環境を整える、<em>3つの方向</em></h2>
+    <p class="sub" data-in="物や場所だけでなく">もの・場所だけでなく、人との関わりや、心の状態も含めて整えます</p>
+    <div class="body">
+      <div class="env3">
+        <div class="hl" data-in="物理的環境は" data-hl="物理的環境は" data-hl-end="社会的環境は"><h3>物理的環境<small>見る・聞く</small></h3><p>感覚に届く刺激を、心地よく</p><ul>
+          <li data-in="まぶしすぎない明るさ" data-fx="fade">まぶしすぎない明るさに</li>
+          <li data-in="テレビを消してから" data-fx="fade">テレビを消してから話しかける</li>
+          <li data-in="テレビを消してから" data-off="1.2" data-fx="fade">時計・カレンダーを見える所に</li>
+          <li data-in="テレビを消してから" data-off="1.6" data-fx="fade">段差や黒い敷物の見え方に配慮</li></ul></div>
+        <div class="hl" data-in="社会的環境は" data-hl="社会的環境は" data-hl-end="心理的環境は"><h3>社会的環境<small>人・活動</small></h3><p>なじみの関係と役割のある時間を</p><ul>
+          <li data-in="なじみの関係" data-fx="fade">担当を固定し、顔なじみに</li>
+          <li data-in="役割をもてる時間" data-fx="fade">折り紙や新聞など、役割のある時間</li>
+          <li data-in="役割をもてる時間" data-off="0.6" data-fx="fade">家族の面会、使い慣れた物を近くに</li>
+          <li data-in="役割をもてる時間" data-off="1.0" data-fx="fade">一人だけの時間を長くしない</li></ul></div>
+        <div class="hl" data-in="心理的環境は" data-hl="心理的環境は" data-hl-end="この三つを整える"><h3>心理的環境<small>安心・尊厳</small></h3><p>急かさない・否定しない関わりを</p><ul>
+          <li data-in="急かさない" data-fx="fade">できたことを認める</li>
+          <li data-in="急かさない" data-off="0.4" data-fx="fade">食事・睡眠・活動のリズムを一定に</li>
+          <li data-in="否定しない関わり" data-fx="fade">不安や孤独のサインに早く気づく</li>
+          <li data-in="否定しない関わり" data-off="0.4" data-fx="fade">説得より、そばにいる安心を</li></ul></div>
+      </div>
+      <div class="band" data-in="この三つを整える">この三つを整えるだけで、<span class="em">ご本人の不安は大きく減ります。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 関わり -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">私たちにできること　3｜関わり</span>
+    <h2 data-in="よかれと思って">その関わりが、<em>刺激</em>になっていませんか</h2>
+    <div class="body">
+      <div class="rel">
+        <div class="rows">
+          <div class="hl" data-in="大丈夫ですか、と何度も" data-hl="大丈夫ですか、と何度も" data-hl-end="さっき言いましたよ"><b>何度も確認する</b><span>「大丈夫ですか」の連呼</span></div>
+          <div class="hl" data-in="さっき言いましたよ" data-hl="さっき言いましたよ" data-hl-end="納得させようと"><b>事実を正す</b><span>「さっき言いましたよ」</span></div>
+          <div class="hl" data-in="納得させようと" data-hl="納得させようと" data-hl-end="複数人で囲む"><b>説得する</b><span>理由を説明して納得させる</span></div>
+          <div class="hl" data-in="複数人で囲む" data-hl="複数人で囲む" data-hl-end="後ろから急に"><b>複数人で囲む</b><span>人数が増えるほど不安に</span></div>
+          <div class="hl" data-in="後ろから急に" data-hl="後ろから急に" data-hl-end="どれも善意から"><b>後ろから声かけ</b><span>急に触れる・腕をつかむ</span></div>
+          <div data-in="後ろから急に" data-off="0.8"><b>大きな声で言う</b><span>音量より、ゆっくり短く</span></div>
+        </div>
+        <div class="fire" data-in="どれも善意から" data-fx="pop">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <path d="M50 8 C62 30 80 38 78 62 C76 84 62 94 50 94 C36 94 22 84 22 64 C22 48 32 40 36 26 C42 36 44 42 48 44 C50 30 48 20 50 8Z" fill="#c23b3b" data-loop="flicker" data-loop-at="燃えている火に" style="transform-origin:50% 100%"/>
+            <path d="M50 52 C58 62 64 68 62 78 C60 88 54 92 50 92 C44 92 38 88 38 78 C38 70 44 66 50 52Z" fill="#f6b84b" data-loop="flicker" data-loop-at="燃えている火に" style="transform-origin:50% 100%"/>
+          </svg>
+          <b data-in="どれも善意から">善意の声かけも、<br>脳には「増えた刺激」</b>
+          <b data-in="燃えている火に" style="color:var(--ink)">燃えている火に、<br>燃料を足していないか</b>
+        </div>
+      </div>
+      <div class="leave" data-in="うまくいかないときは" data-fx="pop"><b>いったん離れる</b><span>関わりを止める勇気も、ケアです。時間をおいて、もう一度。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 実例① -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">当院の実例<span class="case-no" style="color:#fff">①</span></span>
+    <h2 data-in="一つ目。">「ベッドから降りてしまう」理由は、<em>寝る習慣</em>だった</h2>
+    <div class="body">
+      <div class="flow">
+        <div class="hl" data-in="ベッドの柵とは反対" data-hl="ベッドの柵とは反対" data-hl-end="よく聞くと"><small>起きていたこと</small><ul><li>柵のある側とは反対から降りてしまう</li><li>転落の危険がくり返しあった</li></ul></div>
+        <div class="hit hl" data-in="よく聞くと" data-hl="よく聞くと" data-hl-end="そこでリハビリ室"><small>見つけた引き金</small><ul><li>もともとベッドで寝る習慣がなかった</li><li>ベッドの高さや柵で感覚がずれる</li></ul></div>
+        <div class="hl" data-in="そこでリハビリ室" data-hl="そこでリハビリ室" data-hl-end="転落の不安が減り"><small>整えたこと</small><ul><li>リハビリ室のマットを借り、床で休む形に</li><li data-in="安全性はリハビリが評価" data-fx="fade">安全性はリハビリが評価</li><li data-in="ご家族の同意も" data-fx="fade">ご家族に説明し同意を得た</li></ul></div>
+        <div class="out hl" data-in="転落の不安が減り" data-fx="pop" data-hl="転落の不安が減り"><small>結果</small><ul><li>転落の不安が減り、ご本人が落ち着いて休めるように</li></ul></div>
+      </div>
+      <div class="who" data-in="転落の不安が減り" data-off="1.2">関わった職種<b>看護・介護／リハビリ／地域連携／ご家族</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- 09 実例② -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">当院の実例<span class="case-no" style="color:#fff">②</span></span>
+    <h2 data-in="0.3">「なぜ立ち上がるのか」を見たら、<em>ベルトが外せた</em></h2>
+    <div class="body">
+      <div class="flow">
+        <div class="hl" data-in="転倒のリスクから" data-hl="転倒のリスクから" data-hl-end="外せる時間を"><small>起きていたこと</small><ul><li>転倒リスクから車椅子ベルトを使用</li><li>ご家族は安全を最優先にしたい思い</li></ul></div>
+        <div class="hit hl" data-in="外せる時間を" data-hl="外せる時間を" data-hl-end="生活のリズムに"><small>見つけた引き金</small><ul><li>動き出しやすい時間帯を多職種で観察</li><li data-in="立ち上がるのはトイレ" data-fx="pop">立ち上がるのは<br>トイレに行きたいとき</li></ul></div>
+        <div class="hl" data-in="生活のリズムに" data-hl="生活のリズムに" data-hl-end="立ち上がる回数が"><small>整えたこと</small><ul><li>生活リズムに合わせてトイレ誘導</li><li data-in="リハビリの後は" data-fx="fade">リハビリ終わりには必ずトイレへ</li></ul></div>
+        <div class="out hl" data-in="立ち上がる回数が" data-fx="pop" data-hl="立ち上がる回数が"><small>結果</small><ul><li>立ち上がりが減り、ベルトを外せる時間をつくれた</li></ul></div>
+      </div>
+      <div class="who" data-in="立ち上がる回数が" data-off="1.2">関わった職種<b>看護・介護／リハビリ／ご家族</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 実例③ -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">当院の実例<span class="case-no" style="color:#fff">③</span></span>
+    <h2 data-in="0.3">「ポータブル」と決める前に、<em>一週間だけ見てみた</em></h2>
+    <div class="body">
+      <div class="flow">
+        <div class="hl" data-in="入院初日に" data-hl="入院初日に" data-hl-end="リハビリの助言"><small>起きていたこと</small><ul><li>入院初日にポータブルトイレを決めかけていた</li><li data-in="ご本人はトイレに行きたい" data-fx="fade">ご本人はトイレに行きたいという希望</li></ul></div>
+        <div class="hit hl" data-in="もともと使う習慣" data-hl="もともと使う習慣" data-hl-end="その間に環境を"><small>見つけた引き金</small><ul><li>もともと使う習慣のない道具だった</li><li data-in="リハビリの助言" data-fx="fade">リハビリから「一週間評価してから」と助言</li></ul></div>
+        <div class="hl" data-in="その間に環境を" data-hl="その間に環境を" data-hl-end="一週間後、"><small>整えたこと</small><ul><li data-in="動線を見直して" data-fx="fade">動線を評価し物の配置を変更</li><li data-in="動線を見直して" data-off="0.5" data-fx="fade">酸素チューブを柵に留める</li><li data-in="夜はライトを" data-fx="fade">夜はライトをトイレ方向へ</li><li data-in="日中は矢印で" data-fx="fade">日中は矢印で場所を表示</li></ul></div>
+        <div class="out hl" data-in="一週間後、" data-fx="pop" data-hl="一週間後、"><small>結果</small><ul><li>トイレまで行けると判断</li><li data-in="ポータブルは使わずに" data-fx="pop">ポータブルは使わずに済んだ</li></ul></div>
+      </div>
+      <div class="who" data-in="ポータブルは使わずに" data-off="1.0">関わった職種<b>看護・介護／リハビリ</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 薬は最後の手段 -->
+<section class="scene">
+  <div class="pg" data-out="ここで一度、立ち止まって">
+    <span class="tag" data-in="0.1">薬の立ち位置</span>
+    <h2 data-in="0.3">薬は、<em>最後の手段</em>です</h2>
+    <p class="sub" data-in="ガイドラインが示す順番">非薬物的介入を最優先する。BPSDガイドラインが示す順番です。</p>
+    <div class="body">
+      <div class="ladder">
+        <div class="hl" data-in="まず誘因と" data-fx="growy" data-hl="まず誘因と" data-hl-end="次に環境調整"><small>STEP 1</small><b>誘因・身体的<br>要因を探る</b><span>引き金は必ずある</span></div>
+        <div class="hl" data-in="次に環境調整" data-fx="growy" data-hl="次に環境調整" data-hl-end="それでも改善しない場合"><small>STEP 2</small><b>環境調整と<br>ケアの工夫</b><span>見える・聞こえる・わかる</span></div>
+        <div class="hl" data-in="それでも改善しない場合" data-fx="growy" data-hl="それでも改善しない場合"><div class="here" data-in="それでも改善しない場合" data-off="0.6" data-fx="pop" data-loop="blink">薬が出てくるのは ここ ▼</div><small>STEP 3</small><b>改善しなければ<br>薬物療法を検討</b><span data-in="低用量から始め" data-fx="fade">低用量から開始。<br>本人・家族と話し合って</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" data-in="ここで一度、立ち止まって">
+    <span class="tag" data-in="ここで一度、立ち止まって">立ち止まって考える</span>
+    <div class="stopq">
+      <svg viewBox="0 0 100 100" aria-hidden="true" data-in="ここで一度、立ち止まって" data-fx="pop">
+        <polygon points="30,4 70,4 96,30 96,70 70,96 30,96 4,70 4,30" fill="#c23b3b"/>
+        <text x="50" y="62" text-anchor="middle" font-size="30" font-weight="900" fill="#fff" font-family="ZKGN">STOP</text>
+      </svg>
+      <div>
+        <p data-in="自分たちの関わり方や">環境より先に、<br><em>薬が第一選択</em>に<br>なっていませんか</p>
+        <span data-in="自分たちの関わり方や" data-off="0.8">自分たちの関わり方や、その方が置かれている環境を考えるより先に――</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 やめどき -->
+<section class="scene">
+  <div class="pg" data-out="やむを得ず使うときの原則">
+    <span class="tag" data-in="0.1">薬の立ち位置</span>
+    <h2 data-in="0.3">始めたら、<em>やめどき</em>を考える</h2>
+    <div class="body">
+      <div class="fact" data-in="抗精神病薬で">抗精神病薬でBPSDが軽快した場合、<br><em data-in="四か月以内" data-fx="fade">投与開始4か月以内に減量・中止を試みる</em>とされています。</div>
+      <div class="tl" data-in="投与開始から">
+        <div class="track"></div>
+        <div class="fill" data-in="投与開始から" data-fx="grow" data-dur="2.2"></div>
+        <div class="mk" style="left:0">投与開始</div>
+        <div class="pin" data-in="四か月以内" data-fx="pop"></div>
+        <div class="mk end" data-in="四か月以内" data-fx="pop">4か月以内に減量・中止を検討</div>
+      </div>
+      <div class="also" data-in="睡眠薬や抑肝散">睡眠薬・抑肝散なども同様　―　<span class="red">漫然と長期に投与しない</span></div>
+    </div>
+  </div>
+  <div class="pg" data-in="やむを得ず使うときの原則">
+    <span class="tag" data-in="やむを得ず使うときの原則">薬の立ち位置</span>
+    <h2 data-in="やむを得ず使うときの原則">やむを得ず薬を使う場合の<em>3原則</em></h2>
+    <div class="body">
+      <div class="p3">
+        <div class="hl" data-in="低用量から始める" data-fx="pop" data-hl="低用量から始める" data-hl-end="ふらつきや眠気"><i>1</i><b>低用量</b><span>ごく少量から開始し、必要最小限を保つ</span></div>
+        <div class="hl" data-in="ふらつきや眠気" data-fx="pop" data-hl="ふらつきや眠気" data-hl-end="そして、ご本人と"><i>2</i><b>観察</b><span>ふらつき・眠気・食欲・活気を注意深く</span></div>
+        <div class="hl" data-in="そして、ご本人と" data-fx="pop" data-hl="そして、ご本人と" data-hl-end="落ち着いているからこそ"><i>3</i><b>一緒に決める</b><span>本人・家族と話し合って決めていく</span></div>
+      </div>
+      <div class="quote" data-in="落ち着いているからこそ"><small>「落ち着いているから大丈夫」</small>「落ち着いているからこそ、<em>減らせないか</em>」</div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 全職種 -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">全職種へ</span>
+    <h2 data-in="認知症ケアに、担当の">認知症ケアに、<em>担当の職種</em>はありません</h2>
+    <p class="sub" data-in="認知症ケアに、担当の" data-off="0.6">病院で働く全員が、気づく人であり、環境を整える人です。</p>
+    <div class="body">
+      <div class="roles">
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.0" data-hl="医師や看護師" data-hl-end="介護職が見る"><b>医師</b><span>診断・処方・減量中止の判断</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.1" data-hl="医師や看護師" data-hl-end="介護職が見る"><b>看護師</b><span>情報の集約とアセスメント、医師への報告</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.2" data-hl="介護職が見る" data-hl-end="リハビリ職が気づく"><b>介護職・<br>看護補助者</b><span>表情・食事量・排便・活気・ふらつきを観る</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.3" data-hl="リハビリ職が気づく" data-hl-end="薬剤師の減薬"><b>リハビリ職<br>（PT・OT・ST）</b><span>動作・嚥下・意欲の変化、活動性を上げる</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.4" data-hl="薬剤師の減薬" data-hl-end="栄養科が気づく"><b>薬剤師</b><span>せん妄を起こしやすい薬に気づき、減薬提案</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.5" data-hl="栄養科が気づく" data-hl-end="検査技師や事務職"><b>管理栄養士・<br>栄養科</b><span>食事の環境を整え、脱水や食事量に気づく</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.6" data-hl="検査技師や事務職" data-hl-end="環境整備の担当者"><b>検査技師・<br>放射線技師</b><span>検査前のひと言、待ち時間や空間への配慮</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.7" data-hl="検査技師や事務職" data-hl-end="環境整備の担当者"><b>事務職・受付</b><span>最初の一言で安心をつくり、家族の窓口に</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.8" data-hl="環境整備の担当者" data-hl-end="気づいたことは"><b>環境整備・<br>清掃</b><span>床の反射、敷物、物の配置を扱う</span></div>
+        <div class="hl" data-in="画面に、職種ごとに" data-off="0.9" data-hl="気づいたことは"><b>送迎・その他<br>すべての職員</b><span>顔なじみになる。それが、その日の安心に</span></div>
+      </div>
+      <div class="band" data-in="気づいたことは">気づいたことは、<span class="em">誰が伝えても構いません。</span><span data-in="主役の職種も" data-fx="fade">　主役の職種も、脇役の職種もありません。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 まとめ -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">まとめ</span>
+    <h2 data-in="今日の内容を">今日の<em>3つのポイント</em></h2>
+    <div class="body">
+      <div class="sum3">
+        <div class="hl" data-in="一つ目。" data-hl="一つ目。" data-hl-end="二つ目。"><small><i>1</i>引き金</small><b>BPSDには、<br>必ず引き金がある</b><span>身体・環境・心理・関わり方。中核症状という土台の上に、要因が重なって現れます。</span></div>
+        <div class="hl" data-in="二つ目。" data-hl="二つ目。" data-hl-end="三つ目。"><small><i>2</i>順番</small><b>最初の選択肢は、<br>薬ではない</b><span>まず身体を疑う。次に環境を整える。そして、自分の関わり方を見直す。</span></div>
+        <div class="hl" data-in="三つ目。" data-hl="三つ目。" data-hl-end="薬の前に、整え"><small><i>3</i>薬</small><b>薬は最後の手段。<br>使った後も見直す</b><span>ここまでやって改善しないときだけ。始めたら、減らせないかを考え続けます。</span></div>
+      </div>
+      <div class="band ink" data-in="薬の前に、整え" data-fx="pop" style="text-align:center;font-size:3.2cqw;font-weight:900">薬の前に、整えられることがある</div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 明日から -->
+<section class="scene">
+  <div class="pg" data-out="引き金は必ずあります">
+    <span class="tag" data-in="0.1">明日から</span>
+    <h2 data-in="どれか一つで">この中の<em>1つ</em>を試してみてください</h2>
+    <div class="kinds"><span data-in="体のこと" data-fx="pop">体のこと</span><span data-in="環境のこと" data-fx="pop">環境のこと</span><span data-in="関わりのこと" data-fx="pop">関わりのこと</span></div>
+    <div class="body">
+      <ul class="try">
+        <li class="hl" data-in="一つ目。" data-hl="一つ目。" data-hl-end="二つ目。"><i>1</i><b>いつもと違うと感じたら、体調を疑って、看護師に伝える<small>感染症・脱水・便秘・痛み。最初に気づけるのは、近くにいる人です。</small></b></li>
+        <li class="hl" data-in="二つ目。" data-hl="二つ目。" data-hl-end="三つ目。"><i>2</i><b>話しかける前に、テレビと不要な音を消す<small>音を減らすだけで、言葉が届きます。</small></b></li>
+        <li class="hl" data-in="三つ目。" data-hl="三つ目。" data-hl-end="引き金は必ず"><i>3</i><b>うまくいかないときは、いったん離れて時間をおく<small>離れることも、ケアです。</small></b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="pg" data-in="引き金は必ずあります">
+    <div class="message">
+      <div class="kicker" data-in="引き金は必ずあります">すべての職員へ</div>
+      <p data-in="引き金は必ずあります"><em>引き金</em>は、必ずあります。</p>
+      <p data-in="それを探すことから" style="font-size:3.8cqw">それを探すことから、<br>すべてが始まります。</p>
+      <div class="uline" data-in="すべてが始まります" data-fx="grow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 おわりに -->
+<section class="scene">
+  <div class="pg">
+    <span class="tag" data-in="0.1">おわりに</span>
+    <div class="thanks">
+      <div style="display:flex;flex-direction:column;gap:2cqw">
+        <h1 data-in="ご清聴">ご清聴<br>ありがとうございました</h1>
+        <div class="uline" data-in="ご清聴" data-off="0.6" data-fx="grow"></div>
+        <div class="lead" data-in="アンケートへのご協力">アンケートへのご協力をお願いします</div>
+        <div class="sub" style="margin:0" data-in="所要時間は三分">所要時間は3分ほど。今後の研修づくりの参考にさせていただきます。</div>
+      </div>
+      <div class="qr" data-in="画面のQRコード" data-fx="pop"><img src="assets/qr.png" alt="アンケートのQRコード"><b>QRコードを読み取って回答</b><span>所要時間 約3分</span></div>
+    </div>
+  </div>
+</section>
+
+  <div class="foot" id="foot"></div>
+  <div class="cap" id="cap"></div>
+  <div class="bar" id="bar"></div>
+</div></div>
+
+<div class="ctrl">
+  <button id="play" type="button">再生</button>
+  <button id="restart" type="button" class="ghost">最初から</button>
+  <input id="seek" type="range" min="0" max="1000" value="0" aria-label="再生位置">
+  <span class="time" id="time"></span>
+</div>
+<div class="ctrl"><div class="dots" id="dots"></div></div>
+<p class="note">ナレーション音声は研修スライド（narrated.pptx）のものです。動画ファイルは tools/render.mjs で書き出します。</p>
+</div>
+<audio id="audio" src="assets/narration.m4a" preload="auto"></audio>
+
+<script src="timing.js"></script>
+<script>
+(function(){
+  const LEAD = 0.6, TAIL = 1.0, XF = 0.35;         // 音声前の間・後の余韻・シーン切替のフェード
+  const RENDER = /[?&]render/.test(location.search);
+  if (RENDER) document.body.classList.add('render');
+  const stage = document.getElementById('stage');
+  const scenes = [...stage.querySelectorAll('.scene')];
+  const T = window.TIMING;
+  if (scenes.length !== T.length) throw new Error('scene count mismatch');
+
+  // ---- タイムライン構築 ----
+  let acc = 0;
+  const S = scenes.map((el, i) => {
+    const len = LEAD + T[i].duration + TAIL;
+    const s = {el, i, start: acc, len, text: T[i].text, map: T[i].map};
+    acc += len; return s;
+  });
+  const TOTAL = acc;
+  window.SCENE_STARTS = S.map(s => ({start: s.start, len: s.len}));
+
+  function charTime(s, idx){                         // 台本の文字位置→シーン内の秒
+    const m = s.map; let k = 0;
+    while (k < m.length - 2 && m[k + 1][0] <= idx) k++;
+    const [a, ta] = m[k], [b, tb] = m[k + 1];
+    return LEAD + ta + (tb - ta) * Math.min(1, Math.max(0, (idx - a) / Math.max(b - a, 1e-6)));
+  }
+  function at(s, v, off){
+    if (v == null) return null;
+    let t;
+    if (/^[\d.]+$/.test(v)) t = parseFloat(v);
+    else {
+      const idx = s.text.indexOf(v);
+      if (idx < 0) throw new Error(`scene ${s.i + 1}: phrase not found: ${v}`);
+      t = charTime(s, idx) - 0.12;
+    }
+    return t + (parseFloat(off) || 0);
+  }
+  // 字幕：句点ごと
+  S.forEach(s => {
+    const caps = []; let pos = 0;
+    s.text.split(/(?<=[。？])/).forEach(sent => {
+      if (!sent.trim()) return;
+      caps.push({t: charTime(s, pos) - 0.1, text: sent.replace(/ビーピーエスディー/g, 'BPSD')});
+      pos += sent.length;
+    });
+    s.caps = caps;
+    s.items = [...s.el.querySelectorAll('[data-in],[data-out],[data-hl],[data-loop]')].map(el => ({
+      el, fx: el.dataset.fx || (el.classList.contains('pg') ? 'fade' : 'rise'),
+      tin: at(s, el.dataset.in, el.dataset.off), tout: at(s, el.dataset.out),
+      dur: parseFloat(el.dataset.dur) || null,
+      hl: at(s, el.dataset.hl), hlEnd: at(s, el.dataset.hlEnd),
+      loop: el.dataset.loop, loopAt: el.dataset.loop ? at(s, el.dataset.loopAt || el.dataset.in, el.dataset.loopOff) : null,
+    }));
+  });
+
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+  const back = x => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  const DUR = {rise: .6, pop: .5, grow: .8, growy: .6, fade: .45};
+
+  function apply(it, t){
+    let op = 1, tf = '', extra = '';
+    if (it.tin != null){
+      const d = it.dur || DUR[it.fx] || .6, p = clamp((t - it.tin) / d), e = easeOut(p);
+      switch (it.fx){
+        case 'rise': op = e; tf = `translateY(${(1 - e) * 2.5}cqw)`; break;
+        case 'pop': op = clamp(p * 2); tf = `scale(${0.6 + 0.4 * (p >= 1 ? 1 : back(p))})`; break;
+        case 'grow': op = p > 0 ? 1 : 0; tf = `scaleX(${e})`; break;
+        case 'growy': op = clamp(p * 2); tf = `scaleY(${0.2 + 0.8 * e})`; break;
+        default: op = e;
+      }
+    }
+    if (it.tout != null){ const q = clamp((t - it.tout) / .4); op *= 1 - q; if (q > 0) tf += ` translateY(${-q * 1.5}cqw)`; }
+    if (it.loop && it.loopAt != null && t >= it.loopAt){
+      const u = t - it.loopAt;
+      if (it.loop === 'blink') op *= 0.62 + 0.38 * Math.cos(u * Math.PI * 2 / 1.4);
+      if (it.loop === 'shake' && u < 1.5) tf += ` translateX(${Math.sin(u * Math.PI * 4) * 0.8 * (1 - u / 1.5)}cqw)`;
+      if (it.loop === 'pulse') tf += ` scale(${1 + 0.025 * (0.5 - 0.5 * Math.cos(u * Math.PI * 2 / 1.6))})`;
+      if (it.loop === 'flicker') tf += ` scale(${1 + 0.05 * Math.sin(u * 7) + 0.03 * Math.sin(u * 13.3)},${1 + 0.07 * Math.sin(u * 9.1) + 0.03 * Math.sin(u * 5.7)})`;
+    }
+    let lit = null;
+    if (it.hl != null){
+      const a = clamp((t - it.hl) / .35), b = it.hlEnd != null ? clamp((t - it.hlEnd) / .35) : 0;
+      lit = a * (1 - b);
+    }
+    const sig = op.toFixed(3) + tf + (lit == null ? '' : lit.toFixed(3));
+    if (it.sig === sig) return sig;
+    it.sig = sig;
+    it.el.style.opacity = op.toFixed(3);
+    it.el.style.transform = tf;
+    if (lit != null) it.el.style.setProperty('--lit', lit.toFixed(3));
+    return sig;
+  }
+
+  const cap = document.getElementById('cap'), bar = document.getElementById('bar'), foot = document.getElementById('foot');
+  let curScene = -1;
+  function renderAt(t){
+    t = Math.max(0, Math.min(TOTAL - 1e-3, t));
+    let i = S.findIndex(s => t < s.start + s.len); if (i < 0) i = S.length - 1;
+    const s = S[i], lt = t - s.start;
+    if (i !== curScene){ scenes.forEach((el, k) => el.style.visibility = k === i ? 'visible' : 'hidden'); curScene = i; }
+    const fadeIn = i === 0 ? 1 : clamp(lt / XF), fadeOut = i === S.length - 1 ? 1 : clamp((s.len - lt) / XF);
+    const sop = Math.min(fadeIn, fadeOut);
+    s.el.style.opacity = sop.toFixed(3);
+    let sig = i + ':' + sop.toFixed(3);
+    for (const it of s.items) sig += '|' + apply(it, lt);
+    let c = ''; for (const k of s.caps) if (lt >= k.t) c = k.text;
+    if (lt > LEAD + T[i].duration + 0.3) c = '';
+    if (cap.textContent !== c) cap.textContent = c;
+    const ft = String(i + 1).padStart(2, '0') + ' / ' + String(S.length).padStart(2, '0');
+    if (foot.textContent !== ft) foot.textContent = ft;
+    const w = (t / TOTAL * 100).toFixed(2) + '%';
+    if (bar.style.width !== w) bar.style.width = w;
+    return sig + c + w;
+  }
+  window.renderAt = renderAt;
+  window.TOTAL = TOTAL;
+
+  if (RENDER){ renderAt(0); return; }
+
+  // ---- プレビュー再生 ----
+  const frame = document.getElementById('frame'), audio = document.getElementById('audio');
+  const fit = () => stage.style.transform = `scale(${frame.clientWidth / 1920})`;
+  new ResizeObserver(fit).observe(frame); fit();
+  const playBtn = document.getElementById('play'), seek = document.getElementById('seek'), time = document.getElementById('time'), dots = document.getElementById('dots');
+  let t = 0, playing = false, last = null, hasAudio = true;
+  audio.addEventListener('error', () => hasAudio = false);
+  const fmt = x => Math.floor(x / 60) + ':' + String(Math.floor(x % 60)).padStart(2, '0');
+  function jump(x){ t = Math.max(0, Math.min(TOTAL, x)); if (hasAudio) audio.currentTime = t; }
+  S.forEach((s, k) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = k + 1;
+    b.setAttribute('aria-label', 'シーン' + (k + 1)); b.onclick = () => jump(s.start + 0.01); dots.appendChild(b); });
+  playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '一時停止' : '再生';
+    if (hasAudio){ if (playing){ audio.currentTime = t; audio.play().catch(() => hasAudio = false); } else audio.pause(); } };
+  document.getElementById('restart').onclick = () => jump(0);
+  seek.oninput = () => jump(seek.value / 1000 * TOTAL);
+  function tick(now){
+    if (last == null) last = now;
+    if (playing){ t = hasAudio && !audio.paused ? audio.currentTime : t + (now - last) / 1000;
+      if (t >= TOTAL){ t = TOTAL; playing = false; playBtn.textContent = '再生'; } }
+    last = now;
+    renderAt(t);
+    seek.value = Math.round(t / TOTAL * 1000);
+    time.textContent = fmt(t) + ' / ' + fmt(TOTAL);
+    [...dots.children].forEach((d, k) => d.classList.toggle('cur', k === curScene));
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
